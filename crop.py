@@ -9,10 +9,10 @@ import logging
 
 # Path to CSV with manual crop data. Should contain the following columns: "Series", "Season", "Horizontal", "Vertical"
 TV_file_path = "E:\Autocrop\TVDB.csv"
-Movie_file_path = "E:\Autocrop\MoviesDB.csv"
+Movie_file_path = "E:\Autocrop\MovieDB.csv"
 
 # Folder to store the logfiles.
-log_path = "E:\Autocrop\logs\TV"
+log_path = "E:\Autocrop\logs"
 # Logging level (info, debug)
 logging_level = logging.INFO
 
