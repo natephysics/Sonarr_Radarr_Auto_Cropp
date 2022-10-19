@@ -5,11 +5,11 @@ import os
 import argparse
 import pandas as pd
 from sys import exit
-from magic import Magic
 import logging
 
 # Path to CSV with manual crop data. Should contain the following columns: "Series", "Season", "Horizontal", "Vertical"
-csv_file_path = "E:\Autocrop\TVDB.csv"
+TV_file_path = "E:\Autocrop\TVDB.csv"
+Movie_file_path = "E:\Autocrop\MoviesDB.csv"
 
 # Folder to store the logfiles.
 log_path = "E:\Autocrop\logs\TV"
@@ -21,6 +21,7 @@ logging_level = logging.INFO
 # rel_tol=10 means that the difference between the two resolutions is less than 10 pixels
 rel_tol = 18
 
+# The enviromeent variables that are available when sonarr/radarr adds or upgrades a file
 variables = [
     "sonarr_eventtype",
     "sonarr_isupgrade",
@@ -47,6 +48,29 @@ variables = [
     "sonarr_episodefile_scenename",
     "sonarr_episodefile_sourcepath",
     "sonarr_episodefile_sourcefolder",
+    "radarr_eventtype",
+    "radarr_download_id",
+    "radarr_download_client",
+    "radarr_isupgrade",
+    "radarr_movie_id",
+    "radarr_movie_imdbid",
+    "radarr_movie_in_cinemas_date",
+    "radarr_movie_path",
+    "radarr_movie_physical_release_date",
+    "radarr_movie_title",
+    "radarr_movie_tmdbid",
+    "radarr_movie_year",
+    "radarr_moviefile_id",
+    "radarr_moviefile_relativepath",
+    "radarr_moviefile_path",
+    "radarr_moviefile_quality",
+    "radarr_moviefile_qualityversion",
+    "radarr_moviefile_releasegroup",
+    "radarr_moviefile_scenename",
+    "radarr_moviefile_sourcepath",
+    "radarr_moviefile_sourcefolder",
+    "radarr_deletedrelativepaths",
+    "radarr_deletedpath",
 ]
 
 
@@ -201,43 +225,65 @@ def get_crop_parameters(video_path):
 
 def sonarr_main():
     # Import the CSV file with the list of series with manually specified crop parameters
-    show_database = pd.read_csv(csv_file_path)
+    show_database = pd.read_csv(TV_file_path)
+    movie_database = pd.read_csv(Movie_file_path)
 
     # Import the relevant environment variables
     events_vars = {variable: os.getenv(variable, False) for variable in variables}
 
-    # log the event
-    info_log.info(
-        f"New file added: {events_vars['sonarr_series_title']} S{events_vars['sonarr_episodefile_seasonnumber']}E{events_vars['sonarr_episodefile_episodenumbers']}\nSonarr_file_path => {events_vars['sonarr_episodefile_path']}\nsonarr_episodefile_sourcepath => {events_vars['sonarr_episodefile_sourcepath']}"
-    )
-    # Process the video
-    # Check to see if the source and destination file exist
-    if os.path.exists(events_vars["sonarr_episodefile_path"]) and os.path.exists(
-        events_vars["sonarr_episodefile_sourcepath"]
-    ):
-        info_log.debug(f"Video files paths are valid.")
+    # log the event and set the relevant variables based on the event type
+    if "sonarr_eventtype":
+        event_is = "Sonarr"
+    
+        # set the relevant variables based on the event type
+        file_path = events_vars["sonarr_episodefile_path"]
+        source_path = events_vars["sonarr_episodefile_sourcepath"]
+        name = events_vars["sonarr_series_title"]
+        season = events_vars["sonarr_episodefile_seasonnumber"]
+        episode = events_vars["sonarr_episodefile_episodenumbers"]
 
         # Check to see if the video is in the list of series with manually specified crop parameters
+        database_results = show_database[(show_database["Series"] == name) & (show_database["Season"] == int(season))]
 
-        # select the show and season from the database
-        show = show_database[
-            (show_database["Series"] == events_vars["sonarr_series_title"])
-            & (
-                show_database["Season"]
-                == int(events_vars["sonarr_episodefile_seasonnumber"])
-            )
-        ]
+        # log the event
+        info_log.info(
+            f"New show added: {name} S{season}E{episode}\nSonarr_file_path => {file_path}\nsonarr_episodefile_sourcepath => {source_path}"
+        )
+
+    elif "radarr_eventtype":
+        event_is = "Radarr"
+
+        file_path = events_vars["radarr_moviefile_path"]
+        source_path = events_vars["radarr_moviefile_sourcepath"]
+        name = events_vars["radarr_movie_title"]
+        database_results = movie_database[show_database["Movie"] == name]
+
+        # log the event
+        info_log.info(
+            f"New movie added: {name}\nSonarr_file_path => {file_path}\nsonarr_episodefile_sourcepath => {source_path}"
+        )
+
+    # Process the video
+    # Check to see if the source and destination file exist
+    if os.path.exists(file_path) and os.path.exists(source_path):
+        info_log.debug(f"Video files paths are valid.")
+
         # If it is, use the manually specified crop parameters
-        if len(show) == 1:
-            info_log.debug(
-                f"{events_vars['sonarr_series_title']} S{events_vars['sonarr_episodefile_seasonnumber']} found in datatbase with {show['Horizontal'].values[0]}x{show['Vertical'].values[0]} resolution."
-            )
+        if len(database_results) == 1:
+            if event_is == "Sonarr":
+                info_log.debug(
+                    f"{name} S{season}E{episode} found in datatbase with {database_results['Horizontal'].values[0]}x{database_results['Vertical'].values[0]} resolution."
+                )
+            elif event_is == "Radarr":
+                info_log.debug(
+                    f"{name} found in datatbase with {database_results['Horizontal'].values[0]}x{database_results['Vertical'].values[0]} resolution."
+                )
 
             # check to see if the video is already cropped
             already_croped = check_video_resolution(
-                events_vars["sonarr_episodefile_sourcepath"],
-                show["Horizontal"].values[0],
-                show["Vertical"].values[0],
+                source_path,
+                database_results["Horizontal"].values[0],
+                database_results["Vertical"].values[0],
             )
             print(f"already_croped: {already_croped}")
             # if the video is already cropped, skip it
@@ -248,44 +294,45 @@ def sonarr_main():
             else:
                 info_log.info("Begining crop video!")
                 crop_video(
-                    events_vars["sonarr_episodefile_sourcepath"],
-                    events_vars["sonarr_episodefile_path"],
-                    show["Horizontal"].values[0],
-                    show["Vertical"].values[0],
+                    source_path,
+                    file_path,
+                    database_results["Horizontal"].values[0],
+                    database_results["Vertical"].values[0],
                 )
 
         # If the video isn't in the show_database get the crop parameters automatically
         else:
-            info_log.debug(
-                f"Video files {events_vars['sonarr_series_title']} S{events_vars['sonarr_episodefile_seasonnumber']}E{events_vars['sonarr_episodefile_episodenumbers']} not found in TVDB. Getting crop parameters automatically."
-            )
-            width, height = get_crop_parameters(
-                events_vars["sonarr_episodefile_sourcepath"]
-            )
+            if event_is == "Sonarr":
+                info_log.debug(
+                    f"{name} S{season}E{episode} not found in datatbase. Getting crop parameters automatically."
+                )
+
+            # get the crop parameters
+            width, height = get_crop_parameters(source_path)
 
             # check to see if the video is already cropped
             already_croped = check_video_resolution(
-                events_vars["sonarr_episodefile_sourcepath"], width, height,
+                source_path, width, height,
             )
 
             # Crop the video if it isn't already cropped
             if not already_croped:
                 crop_video(
-                    events_vars["sonarr_episodefile_sourcepath"],
-                    events_vars["sonarr_episodefile_path"],
+                    source_path,
+                    file_path,
                     width,
                     height,
                 )
     else:
         error_log.warning(
-            f"Unable to find specified file(s). Sonarr_file_path => {events_vars['sonarr_episodefile_path']}\nsonarr_episodefile_sourcepath => {events_vars['sonarr_episodefile_sourcepath']}"
+            f"Unable to find specified file(s). File_path => {file_path}\nsourcepath => {source_path}"
         )
         exit(1)
 
 
 if __name__ == "__main__":
-    EventType = os.getenv("sonarr_eventtype")
-    if EventType == "Test":
+    EventTypes = [os.getenv("sonarr_eventtype"), os.getenv("radarr_eventtype")]
+    if "Test" in EventTypes:
         info_log.info("Test has been ran successfully.")
         exit(0)
     sonarr_main()
