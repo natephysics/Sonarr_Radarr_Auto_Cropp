@@ -2,7 +2,6 @@ import json
 import subprocess
 import csv
 import os
-import argparse
 import pandas as pd
 import time
 from sys import exit
@@ -126,13 +125,13 @@ def crop_video(source_path, destination_path, width, height):
     error_code = process.returncode
     if error_code > 0:
         error_log.warning(
-            f"Failed to delete existing file on second attempt. Aborting process. \nCommand: {cmd}\nError: {error_code}"
+            f"Failed to delete existing file on second attempt. Aborting process.\nCommand: {cmd}\nError: {error_code}"
         )
         exit(1)
 
     # Crop the video using the source path as the input and the destination path as the output.
     # Prepare the crop command
-    crop_cmd = [
+    cmd = [
         "ffmpeg",
         "-y",
         "-i",
@@ -163,12 +162,10 @@ def crop_video(source_path, destination_path, width, height):
         "4",
         destination_path,
     ]
-    crop_video_process = subprocess.run(crop_cmd, shell=True)
-    errcode = crop_video_process.returncode
-    if errcode > 0:
-        error_log.warning(
-            f"cmd failed during crop_video, see above for details. Command: {crop_cmd}"
-        )
+    crop_video_process = subprocess.run(cmd, shell=True)
+    error_code = crop_video_process.returncode
+    if error_code > 0:
+        error_log.warning(f"Failed to crop video.\nCommand: {cmd}\nError: {error_code}")
         exit(1)
     else:
         info_log.info(
@@ -183,8 +180,7 @@ def check_video_resolution(video_path, width, height):
     error_code = process.returncode
     if error_code > 0:
         error_log.warning(
-            "cmd failed during check_video_resolution, see above for details. Command: ",
-            cmd,
+            "Failed to verify the correct video resolution.\nCommand: {cmd}\nError: {error_code}"
         )
         exit(1)
 
@@ -220,20 +216,22 @@ def get_crop_parameters(video_path):
     cmd = f'bash -c "ffmpeg -ss 120 -i \\"{bash_path}\\" -f matroska -t 300 -an -vf cropdetect=24:16:0 -y -crf 51 -preset ultrafast /dev/null 2>&1 | grep -o crop=.* | sort -bh | uniq -c | sort -bh | tail -n1 | grep -o crop=.* | sed \'s/.*crop=//g\'"'
     process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
     error_code = process.returncode
-
-    process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-    error_code = process.returncode
     if error_code > 0:
         error_log.warning(
-            "cmd failed during get_crop_parameters, see above for details. Command: ",
-            cmd,
+            "Failed to find the correct crop parameters.\nCommand: {cmd}\nError: {error_code}"
         )
         exit(1)
 
     possible_crops = process.stdout.decode().splitlines()
     # Get most repetead resolution, that's the one with more possibilites to be right
     crop = max(possible_crops, key=possible_crops.count)
-    width, height, _, _ = crop.split(":")
+    try:
+        width, height, _, _ = crop.split(":")
+    except:
+        error_log.warning(
+            "Output from crop parameters command incorrect.\nCommand: {cmd}\nError: {error_code}\nPossible Crop Parameters: {possible_crops}"
+        )
+        exit(1)
     info_log.debug(f"Crop parameters found: {width}x{height}")
 
     return width, height
@@ -268,7 +266,7 @@ def sonarr_main():
 
         # log the event
         info_log.info(
-            f"New show added: {name} S{season}E{episode}\nSonarr_file_path => {file_path}\nsonarr_episodefile_sourcepath => {source_path}"
+            f"New show added: {name} S{int(season):02}E{int(episode):02}\nSonarr_file_path => {file_path}\nsonarr_episodefile_sourcepath => {source_path}"
         )
 
     elif events_vars["radarr_eventtype"]:
@@ -293,7 +291,7 @@ def sonarr_main():
         if len(database_results) == 1:
             if event_is == "Sonarr":
                 info_log.debug(
-                    f"{name} S{season}E{episode} found in datatbase with {database_results['Horizontal'].values[0]}x{database_results['Vertical'].values[0]} resolution."
+                    f"{name} S{int(season):02}E{int(episode):02} found in datatbase with {database_results['Horizontal'].values[0]}x{database_results['Vertical'].values[0]} resolution."
                 )
             elif event_is == "Radarr":
                 info_log.debug(
@@ -325,7 +323,7 @@ def sonarr_main():
         else:
             if event_is == "Sonarr":
                 info_log.debug(
-                    f"{name} S{season}E{episode} not found in datatbase. Getting crop parameters automatically."
+                    f"{name} S{int(season):02}E{int(episode):02} not found in datatbase. Getting crop parameters automatically."
                 )
 
             # get the crop parameters
@@ -344,6 +342,7 @@ def sonarr_main():
             f"Unable to find specified file(s). File_path => {file_path}\nsourcepath => {source_path}"
         )
         exit(1)
+    return file_path
 
 
 if __name__ == "__main__":
@@ -351,5 +350,5 @@ if __name__ == "__main__":
     if "Test" in EventTypes:
         info_log.info("Test has been ran successfully.")
         exit(0)
-    sonarr_main()
-    info_log.info("Completed script!")
+    file_path = sonarr_main()
+    info_log.info("Completed processing {file_path}")
