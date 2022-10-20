@@ -4,6 +4,7 @@ import csv
 import os
 import argparse
 import pandas as pd
+import time
 from sys import exit
 import logging
 
@@ -112,9 +113,21 @@ def crop_video(source_path, destination_path, width, height):
     # Delete the original file
     cmd = ["powershell", "-Command", f'del "{destination_path}"']
     process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-    errorcode = process.returncode
-    if errorcode > 0:
-        error_log.warning(f"Failed to delete existing file: {cmd}")
+    error_code = process.returncode
+
+    # A common error was some other application was processing the file. Wait 3mins and try again.
+    if error_code > 0:
+        time.sleep(180)
+        error_log.warning(
+            f"Failed to delete existing file on first attempt.\nCommand: {cmd}\nError: {error_code}"
+        )
+
+    process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+    error_code = process.returncode
+    if error_code > 0:
+        error_log.warning(
+            f"Failed to delete existing file on second attempt. Aborting process. \nCommand: {cmd}\nError: {error_code}"
+        )
         exit(1)
 
     # Crop the video using the source path as the input and the destination path as the output.
@@ -167,8 +180,8 @@ def check_video_resolution(video_path, width, height):
     # check to see the current resolution of the video.
     cmd = f'ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of json "{video_path}"'
     process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-    errorcode = process.returncode
-    if errorcode > 0:
+    error_code = process.returncode
+    if error_code > 0:
         error_log.warning(
             "cmd failed during check_video_resolution, see above for details. Command: ",
             cmd,
@@ -206,9 +219,12 @@ def get_crop_parameters(video_path):
     # I'm running this in WSL because I wasn't quite able to get it to work as I'd like using windows cmd or powershell.
     cmd = f'bash -c "ffmpeg -ss 120 -i \\"{bash_path}\\" -f matroska -t 300 -an -vf cropdetect=24:16:0 -y -crf 51 -preset ultrafast /dev/null 2>&1 | grep -o crop=.* | sort -bh | uniq -c | sort -bh | tail -n1 | grep -o crop=.* | sed \'s/.*crop=//g\'"'
     process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-    errorcode = process.returncode
-    if errorcode > 0:
-        print(
+    error_code = process.returncode
+
+    process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+    error_code = process.returncode
+    if error_code > 0:
+        error_log.warning(
             "cmd failed during get_crop_parameters, see above for details. Command: ",
             cmd,
         )
