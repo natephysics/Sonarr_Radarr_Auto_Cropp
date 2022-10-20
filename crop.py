@@ -24,53 +24,53 @@ rel_tol = 18
 # The enviromeent variables that are available when sonarr/radarr adds or upgrades a file
 variables = [
     "sonarr_eventtype",
-    "sonarr_isupgrade",
-    "sonarr_series_id",
+    # "sonarr_isupgrade",
+    # "sonarr_series_id",
     "sonarr_series_title",
     "sonarr_episodefile_path",
-    "sonarr_series_tvdbid",
-    "sonarr_series_tvmazeid",
-    "sonarr_series_imdbid",
-    "sonarr_series_type",
-    "sonarr_episodefile_id",
-    "sonarr_episodefile_episodecount",
-    "sonarr_episodefile_relativepath",
+    # "sonarr_series_tvdbid",
+    # "sonarr_series_tvmazeid",
+    # "sonarr_series_imdbid",
+    # "sonarr_series_type",
+    # "sonarr_episodefile_id",
+    # "sonarr_episodefile_episodecount",
+    # "sonarr_episodefile_relativepath",
     "sonarr_episodefile_path",
-    "sonarr_episodefile_episodeids",
+    # "sonarr_episodefile_episodeids",
     "sonarr_episodefile_seasonnumber",
     "sonarr_episodefile_episodenumbers",
-    "sonarr_episodefile_episodeairdates",
-    "sonarr_episodefile_episodeairdatesutc",
+    # "sonarr_episodefile_episodeairdates",
+    # "sonarr_episodefile_episodeairdatesutc",
     "sonarr_episodefile_episodetitles",
-    "sonarr_episodefile_quality",
-    "sonarr_episodefile_qualityversion",
-    "sonarr_episodefile_releasegroup",
-    "sonarr_episodefile_scenename",
+    # "sonarr_episodefile_quality",
+    # "sonarr_episodefile_qualityversion",
+    # "sonarr_episodefile_releasegroup",
+    # "sonarr_episodefile_scenename",
     "sonarr_episodefile_sourcepath",
-    "sonarr_episodefile_sourcefolder",
+    # "sonarr_episodefile_sourcefolder",
     "radarr_eventtype",
-    "radarr_download_id",
-    "radarr_download_client",
-    "radarr_isupgrade",
-    "radarr_movie_id",
-    "radarr_movie_imdbid",
-    "radarr_movie_in_cinemas_date",
+    # "radarr_download_id",
+    # "radarr_download_client",
+    # "radarr_isupgrade",
+    # "radarr_movie_id",
+    # "radarr_movie_imdbid",
+    # "radarr_movie_in_cinemas_date",
     "radarr_movie_path",
-    "radarr_movie_physical_release_date",
+    # "radarr_movie_physical_release_date",
     "radarr_movie_title",
-    "radarr_movie_tmdbid",
-    "radarr_movie_year",
-    "radarr_moviefile_id",
-    "radarr_moviefile_relativepath",
+    # "radarr_movie_tmdbid",
+    # "radarr_movie_year",
+    # "radarr_moviefile_id",
+    # "radarr_moviefile_relativepath",
     "radarr_moviefile_path",
-    "radarr_moviefile_quality",
-    "radarr_moviefile_qualityversion",
-    "radarr_moviefile_releasegroup",
-    "radarr_moviefile_scenename",
+    # "radarr_moviefile_quality",
+    # "radarr_moviefile_qualityversion",
+    # "radarr_moviefile_releasegroup",
+    # "radarr_moviefile_scenename",
     "radarr_moviefile_sourcepath",
-    "radarr_moviefile_sourcefolder",
-    "radarr_deletedrelativepaths",
-    "radarr_deletedpath",
+    # "radarr_moviefile_sourcefolder",
+    # "radarr_deletedrelativepaths",
+    # "radarr_deletedpath",
 ]
 
 
@@ -231,10 +231,13 @@ def sonarr_main():
     # Import the relevant environment variables
     events_vars = {variable: os.getenv(variable, False) for variable in variables}
 
+    # log the event
+    info_log.debug("Environment variables: %s", events_vars)
+
     # log the event and set the relevant variables based on the event type
-    if "sonarr_eventtype":
+    if events_vars["sonarr_eventtype"]:
         event_is = "Sonarr"
-    
+
         # set the relevant variables based on the event type
         file_path = events_vars["sonarr_episodefile_path"]
         source_path = events_vars["sonarr_episodefile_sourcepath"]
@@ -243,20 +246,22 @@ def sonarr_main():
         episode = events_vars["sonarr_episodefile_episodenumbers"]
 
         # Check to see if the video is in the list of series with manually specified crop parameters
-        database_results = show_database[(show_database["Series"] == name) & (show_database["Season"] == int(season))]
+        database_results = show_database[
+            (show_database["Series"] == name) & (show_database["Season"] == int(season))
+        ]
 
         # log the event
         info_log.info(
             f"New show added: {name} S{season}E{episode}\nSonarr_file_path => {file_path}\nsonarr_episodefile_sourcepath => {source_path}"
         )
 
-    elif "radarr_eventtype":
+    elif events_vars["radarr_eventtype"]:
         event_is = "Radarr"
 
         file_path = events_vars["radarr_moviefile_path"]
         source_path = events_vars["radarr_moviefile_sourcepath"]
         name = events_vars["radarr_movie_title"]
-        database_results = movie_database[show_database["Movie"] == name]
+        database_results = movie_database[movie_database["Movie"] == name]
 
         # log the event
         info_log.info(
@@ -311,17 +316,12 @@ def sonarr_main():
             width, height = get_crop_parameters(source_path)
 
             # check to see if the video is already cropped
-            already_croped = check_video_resolution(
-                source_path, width, height,
-            )
+            already_croped = check_video_resolution(source_path, width, height,)
 
             # Crop the video if it isn't already cropped
             if not already_croped:
                 crop_video(
-                    source_path,
-                    file_path,
-                    width,
-                    height,
+                    source_path, file_path, width, height,
                 )
     else:
         error_log.warning(
