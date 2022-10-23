@@ -116,18 +116,19 @@ def crop_video(source_path, destination_path, width, height):
 
     # A common error was some other application was processing the file. Wait 3mins and try again.
     if error_code > 0:
-        time.sleep(180)
         error_log.warning(
             f"Failed to delete existing file on first attempt.\nCommand: {cmd}\nError: {error_code}"
         )
+        time.sleep(180)
 
-    process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
-    error_code = process.returncode
-    if error_code > 0:
-        error_log.warning(
-            f"Failed to delete existing file on second attempt. Aborting process.\nCommand: {cmd}\nError: {error_code}"
-        )
-        exit(1)
+        # Try again
+        process = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE)
+        error_code = process.returncode
+        if error_code > 0:
+            error_log.warning(
+                f"Failed to delete existing file on second attempt. Aborting process.\nCommand: {cmd}\nError: {error_code}"
+            )
+            exit(1)
 
     # Crop the video using the source path as the input and the destination path as the output.
     # Prepare the crop command
@@ -180,7 +181,7 @@ def check_video_resolution(video_path, width, height):
     error_code = process.returncode
     if error_code > 0:
         error_log.warning(
-            "Failed to verify the correct video resolution.\nCommand: {cmd}\nError: {error_code}"
+            f"Failed to verify the correct video resolution.\nCommand: {cmd}\nError: {error_code}"
         )
         exit(1)
 
@@ -218,7 +219,7 @@ def get_crop_parameters(video_path):
     error_code = process.returncode
     if error_code > 0:
         error_log.warning(
-            "Failed to find the correct crop parameters.\nCommand: {cmd}\nError: {error_code}"
+            f"Failed to find the correct crop parameters.\nCommand: {cmd}\nError: {error_code}"
         )
         exit(1)
 
@@ -229,7 +230,7 @@ def get_crop_parameters(video_path):
         width, height, _, _ = crop.split(":")
     except:
         error_log.warning(
-            "Output from crop parameters command incorrect.\nCommand: {cmd}\nError: {error_code}\nPossible Crop Parameters: {possible_crops}"
+            f"Output from crop parameters command incorrect.\nCommand: {cmd}\nError: {error_code}\nPossible Crop Parameters: {possible_crops}"
         )
         exit(1)
     info_log.debug(f"Crop parameters found: {width}x{height}")
@@ -351,4 +352,4 @@ if __name__ == "__main__":
         info_log.info("Test has been ran successfully.")
         exit(0)
     file_path = sonarr_main()
-    info_log.info("Completed processing {file_path}")
+    info_log.info(f"Completed processing {file_path}")
