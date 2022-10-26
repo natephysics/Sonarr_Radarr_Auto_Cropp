@@ -7,7 +7,8 @@ import time
 from sys import exit
 import logging
 
-# Path to CSV with manual crop data. Should contain the following columns: "Series", "Season", "Horizontal", "Vertical"
+# Path to CSV with manual crop data. TVDB.csv should contain the following columns: "Series", "Season", "Horizontal", "Vertical", "Skip"
+# MovieDB.csv should contain the following columns: "Series", "Season", "Horizontal", "Vertical", "Skip"
 TV_file_path = "E:\Autocrop\TVDB.csv"
 Movie_file_path = "E:\Autocrop\MovieDB.csv"
 
@@ -282,6 +283,14 @@ def sonarr_main():
         info_log.info(
             f"New movie added: {name}\nSonarr_file_path => {file_path}\nsonarr_episodefile_sourcepath => {source_path}"
         )
+
+    # Check to see if the skip flag is set and if so skip processing the video.
+    if len(database_results) == 1:
+        if database_results["Skip"].values[0] == True:
+            info_log.info(
+                f"Skipping {name} because it is marked as skipped in the database."
+            )
+            exit(0)
 
     # Process the video
     # Check to see if the source and destination file exist
